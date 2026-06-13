@@ -76,6 +76,12 @@ static void do_reboot(void)
     system("su -c reboot");
 }
 
+static bool is_dismiss_action(int action)
+{
+    /* Y1 maps Android BACK to BUTTON_MENU, not ACTION_STD_CANCEL */
+    return action == ACTION_STD_CANCEL || action == ACTION_STD_MENU;
+}
+
 enum plugin_status plugin_start(const void *parameter)
 {
     (void)parameter;
@@ -93,7 +99,7 @@ enum plugin_status plugin_start(const void *parameter)
     while (true) {
         btn = rb->get_action(CONTEXT_STD, HZ * 15);
         if (btn == ACTION_STD_OK) break;
-        if (btn == ACTION_STD_CANCEL || btn == ACTION_STD_PREV) {
+        if (is_dismiss_action(btn)) {
             rb->splash(HZ, "Cancelled."); return PLUGIN_OK;
         }
     }
@@ -104,7 +110,7 @@ enum plugin_status plugin_start(const void *parameter)
     while (true) {
         btn = rb->get_action(CONTEXT_STD, HZ * 15);
         if (btn == ACTION_STD_OK) { do_reboot(); break; }
-        if (btn == ACTION_STD_CANCEL || btn == ACTION_STD_PREV) break;
+        if (is_dismiss_action(btn)) break;
     }
     return PLUGIN_OK;
 }
