@@ -36,6 +36,12 @@ static void apply_state(bool enable)
     system(cmd);
 }
 
+static void do_reboot(void)
+{
+    /* rb->sys_reboot() only exits Rockbox on Android, not the device */
+    system("su -c reboot");
+}
+
 enum plugin_status plugin_start(const void *parameter)
 {
     (void)parameter;
@@ -59,7 +65,7 @@ enum plugin_status plugin_start(const void *parameter)
     rb->splash(0, speaker_on ? "Disabled.\nOK=reboot BACK=later" : "Enabled.\nOK=reboot BACK=later");
     while (true) {
         btn = rb->get_action(CONTEXT_STD, HZ * 15);
-        if (btn == ACTION_STD_OK) { rb->sys_reboot(); break; }
+        if (btn == ACTION_STD_OK) { do_reboot(); break; }
         if (btn == ACTION_STD_CANCEL || btn == ACTION_STD_PREV) break;
     }
     return PLUGIN_OK;
