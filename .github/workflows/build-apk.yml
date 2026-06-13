@@ -2,7 +2,7 @@ name: Build latest APK
 
 on:
   push:
-    branches: [ "y1" ]
+    branches: [ "v0.5" ]
 
 jobs:
   build:

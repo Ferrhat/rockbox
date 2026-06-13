@@ -1,10 +1,44 @@
 #include "plugin.h"
+#include "speaker_toggle_conf.h"
 #include <stdlib.h>
 
 #define CONF_PATH "/system/etc/audio_policy.conf"
-#define CONF_SPEAKER_ON "/sdcard/.rockbox/audio_policy_speaker.conf"
-#define CONF_SPEAKER_OFF "/sdcard/.rockbox/audio_policy_nospeaker.conf"
+#define CONF_SPEAKER_ON PLUGIN_APPS_DATA_DIR "/audio_policy_speaker.conf"
+#define CONF_SPEAKER_OFF PLUGIN_APPS_DATA_DIR "/audio_policy_nospeaker.conf"
 #define SPEAKER_TOKEN "AUDIO_DEVICE_OUT_SPEAKER"
+
+static bool file_exists(const char *path)
+{
+    int fd = rb->open(path, O_RDONLY, 0);
+    if (fd < 0)
+        return false;
+    rb->close(fd);
+    return true;
+}
+
+static bool write_config(const char *path, const char *data)
+{
+    int fd = rb->open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    if (fd < 0)
+        return false;
+    size_t len = rb->strlen(data);
+    ssize_t n = rb->write(fd, data, len);
+    rb->close(fd);
+    return n == (ssize_t)len;
+}
+
+static bool ensure_config_files(void)
+{
+    if (!file_exists(CONF_SPEAKER_ON)
+        && !write_config(CONF_SPEAKER_ON, speaker_on_conf))
+        return false;
+
+    if (!file_exists(CONF_SPEAKER_OFF)
+        && !write_config(CONF_SPEAKER_OFF, speaker_off_conf))
+        return false;
+
+    return true;
+}
 
 static int get_speaker_state(void)
 {
@@ -27,7 +61,7 @@ static int get_speaker_state(void)
 static void apply_state(bool enable)
 {
     const char *src = enable ? CONF_SPEAKER_ON : CONF_SPEAKER_OFF;
-    char cmd[256];
+    char cmd[512];
     rb->snprintf(cmd, sizeof(cmd),
         "su -c 'mount -o rw,remount /system"
         " && cp \"%s\" " CONF_PATH
@@ -45,6 +79,10 @@ static void do_reboot(void)
 enum plugin_status plugin_start(const void *parameter)
 {
     (void)parameter;
+    if (!ensure_config_files()) {
+        rb->splash(HZ * 2, "Error creating configs.");
+        return PLUGIN_OK;
+    }
     int state = get_speaker_state();
     if (state < 0) { rb->splash(HZ * 2, "Error reading config."); return PLUGIN_OK; }
     bool speaker_on = (state == 1);
