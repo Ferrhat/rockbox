@@ -1,0 +1,90 @@
+name: Build latest APK
+
+on:
+  push:
+    branches: [ "y1" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      ANDROID_SDK_PATH: /usr/local/lib/android/sdk
+      ANDROID_NDK_PATH: /home/runner/android-ndk-r10e
+      ANDROID_NDK_ROOT: /home/runner/android-ndk-r10e
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: prepare build environment
+      run: |
+        sudo apt update
+        sudo apt install -y lib32z1 openjdk-17-jdk
+        java --version
+        cd android/y1
+        yes | ./installToolchain.sh
+
+    - name: create build directory
+      run: mkdir -p android/y1/build
+
+    - name: configure
+      run: |
+        cd android/y1/build
+        ../../../tools/configure --target=310 --lcdwidth=480 --lcdheight=360 --type=n
+
+    - name: make
+      run: |
+        cd android/y1/build
+        make
+
+    - name: make classes
+      run: |
+        cd android/y1/build
+        make classes
+
+    - name: make zip
+      run: |
+        cd android/y1/build
+        make zip
+
+    - name: build unsigned apk
+      run: |
+        cd android/y1/build
+        make unsigned-apk
+
+    - name: sign apk
+      run: |
+        APKSIGNER=""
+        if command -v apksigner >/dev/null 2>&1; then
+            APKSIGNER="apksigner"
+        elif [ -n "$ANDROID_SDK_PATH" ] && [ -f "$ANDROID_SDK_PATH/build-tools/$(ls -1 "$ANDROID_SDK_PATH/build-tools" | tail -1)/apksigner" ]; then
+            APKSIGNER="$ANDROID_SDK_PATH/build-tools/$(ls -1 "$ANDROID_SDK_PATH/build-tools" | tail -1)/apksigner"
+        fi
+        cd android/y1/build
+        $APKSIGNER sign --key ../platform.pk8 --cert ../platform.x509.pem rockbox_unsigned.apk
+        cp rockbox_unsigned.apk rockbox.apk
+
+    - name: create release
+      id: create_release
+      uses: shogo82148/actions-create-release@v1
+      with:
+        release_name: 360p-${{ github.sha }}
+        tag_name: 360p-${{ github.run_id }}
+        prerelease: true
+
+    - name: upload apk
+      uses: shogo82148/actions-upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./android/y1/build/rockbox.apk
+        asset_name: rockbox-360p-${{ github.sha }}.apk
+        asset_content_type: application/vnd.android.package-archive
+
+    - name: upload rockbox zip
+      uses: shogo82148/actions-upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./android/y1/build/rockbox.zip
+        asset_name: rockbox.zip
+        asset_content_type: application/zip
